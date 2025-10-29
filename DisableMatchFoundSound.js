@@ -6,32 +6,32 @@
  * @link https://github.com/personinblack/Pengu-Disable-Match-Found-Loop-Sound
  */
 
-document.addEventListener("DOMContentLoaded", function () {
-    console.log("[Pengu Loader] DisableMatchFoundSound loaded");
-    const OriginalXHR = window.XMLHttpRequest;
-    window.XMLHttpRequest = function() {
-        const xhr = new OriginalXHR();
-        const originalOpen = xhr.open;
+export async function load() {
+    const audioPlugin = await rcp.whenReady("rcp-fe-audio");
 
-        xhr.open = function(method, url, ...args) {
-            if (url && (url.includes('sfx-readycheck-ringmagic-accepted-loop') || url.includes('sfx-readycheck-sr-portal'))) {
-                console.log('BLOCKED AUDIO:', url);
-
-                this.response = null;
-                this.status = 0;
-
-                this.send = function() {
-                    setTimeout(() => {
-                        if (this.onerror) this.onerror({ loaded: 0, total: 0 });
-                    }, 0);
-                };
-
-                return;
-            }
-
-            return originalOpen.apply(this, [method, url, ...args]);
-        };
-
-        return xhr;
-    };
-});
+    // Hooking all channels' playSound just in case.
+    const channelNames = [
+        "sfx",
+        "sfx-notifications",
+        "sfx-ui",
+        "sfx-champions",
+    ];
+    
+    const blockedUrls = ["sfx-readycheck-ringmagic-accepted-loop", "sfx-readycheck-sr-portal"];
+    
+    channelNames.forEach(channelName => {
+        const channel = audioPlugin.getChannel(channelName);
+        if (channel && channel.playSound) {
+            const originalPlaySound = channel.playSound.bind(channel);
+            
+            channel.playSound = function(url, options, playOptions) {
+                if (url && blockedUrls.some(blocked => url.includes(blocked))) {
+                    console.log("BLOCKED AUDIO: ", url);
+                    return Promise.resolve(null);
+                }
+                
+                return originalPlaySound(url, options, playOptions);
+            };
+        }
+    });
+};
